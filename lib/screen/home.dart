@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:t178/screen/camera_options.dart';
 import 'package:t178/screen/map.dart';
+import 'package:t178/screen/pages/video_preview.dart';
 import 'package:video_player/video_player.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, TickerProviderStateMixin{
   DateTime today = DateTime.now();
   DateTime begin = DateTime(2023,11,27);
+  late PageController _pageController;
   // Counting pointers (number of user fingers on screen)
   int _pointers = 0;
   // camera variables
@@ -24,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   XFile? imageFile;
   XFile? videoFile;
   VideoPlayerController? videoController;
+  bool isPauseRecording = false;
   VoidCallback? videoPlayerListener;
   bool enableAudio = true;
   bool turnOnFlash = false;
@@ -41,11 +44,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     ));
     // Register this widget as an observer to listen for lifecycle changes
     WidgetsBinding.instance.addObserver(this);
+    _pageController = PageController();
   }
 
   @override
   void dispose(){
     WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -70,143 +75,158 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   Widget build(BuildContext context) {
     int numberOfLoveDays = today.difference(begin).inDays;
     return Scaffold(
-      body:Container(
-        height: MediaQuery.sizeOf(context).height,
-        width: MediaQuery.sizeOf(context).width,
-        color: Colors.black87,
-        child: ListView(
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: <Widget>[
-                const SizedBox(height: 20,),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ClipOval(
-                      clipBehavior: Clip.hardEdge,
-                      child: Material(
-                        color: Colors.white38,
-                        child: IconButton(
-                            onPressed: (){
-                              if(kDebugMode){
-                                debugPrint("On tap");
-                              }
-                            },
-                            icon:Image.asset("images/profile-user.png",color: Colors.white,height: 35,width: 35,)
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width:80,),
-                    Text("$numberOfLoveDays days",
-                      style: const TextStyle(fontSize:22,fontWeight: FontWeight.bold,color: Colors.white,fontFamily:"CupertinoSystemDisplay" ),),
-                    const SizedBox(width:80,),
-                    ClipOval(
-                      clipBehavior: Clip.hardEdge,
-                      child: Material(
-                        color: Colors.white38,
-                        child: IconButton(
-                            onPressed: (){
-                              Navigator.push(context, MaterialPageRoute(builder: (context)=>const MapScreen()));
-                            },
-                            icon:const Icon(Icons.location_on,color: Colors.white,size: 30,)
-                        ),
-                      ),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 50,),
-                _cameraPreviewWidget(),
-                const SizedBox(height: 20,),
-                _captureControlRowWidget(),
-                const SizedBox(height: 30,),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    InkWell(
-                      onTap: (){
-                        setState(() {
-                          turnOnFlash = !turnOnFlash;
-                        });
-                        if(controller != null && turnOnFlash){
-                          onSetFlashModeButtonPressed(FlashMode.always);
-                        }else if(controller != null && !turnOnFlash){
-                          onSetFlashModeButtonPressed(FlashMode.off);
-                        }
-                      },
-                      onDoubleTap: controller != null ? ()=>onSetFlashModeButtonPressed(FlashMode.auto):null,
-                      onLongPress: controller != null ? ()=>onSetFlashModeButtonPressed(FlashMode.torch):null,
-                      child: Image.asset(turnOnFlash?"images/turn-off.png":"images/flash.png",height: 50,width: 50,),
-                    ),
-                    const SizedBox(width: 30,),
-                    GestureDetector(
-                      onTap: () {
-                        if(controller != null){
-                          controller!.value.isInitialized && !controller!.value.isTakingPicture
-                              ? onTakePictureButtonPressed()
-                              : null;
-                        }
-                      },
-                      onLongPress: (){
-                        if(controller != null) {
-                          controller!.value.isInitialized && !controller!.value.isRecordingVideo
-                              ? onVideoRecordButtonPressed()
-                              : null;
-                        }
-                      },
-                      child: Container(
-                        width: 85,
-                        height: 85,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white, // Inner white color
-                          border: Border.all(
-                            color: Colors.black, // Black border
-                            width: 5,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.lightBlue, // Outer yellow border
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 30,),
-                    IconButton(
-                      icon: Image.asset("images/camera.png",height:50,width: 50,),
-                      onPressed: (){
-                        if(cameras.isEmpty){
-                          showInSnackBar("No camera found");
-                        }else{
-                          setState(() {
-                            frontCamera = !frontCamera;
-                          });
-                          if(controller != null){
-                            if(frontCamera){
-                              controller!.setDescription(cameras[1]);
-                            }else {
-                              controller!.setDescription(cameras[0]);
+      backgroundColor:Colors.black87,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        scrollDirection: Axis.vertical,
+        children: [
+          Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: <Widget>[
+              const SizedBox(height: 50,),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ClipOval(
+                    clipBehavior: Clip.hardEdge,
+                    child: Material(
+                      color: Colors.white38,
+                      child: IconButton(
+                          onPressed: (){
+                            if(kDebugMode){
+                              debugPrint("On tap");
                             }
-                          }else{
-                            _initializeCameraController(cameras[0]);
-                          }
-                        }
-                      },
+                          },
+                          icon:Image.asset("images/profile-user.png",color: Colors.white,height: 35,width: 35,)
+                      ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20,),
-                const Icon(Icons.keyboard_arrow_up_rounded,color: Colors.white,size: 50,),
-                const Text("Scroll to see more",style:TextStyle(fontSize:20,color: Colors.white),),
-              ],
-            ),
-            _thumbnailWidget(),
-          ],
-        ),
+                  ),
+                  const SizedBox(width:80,),
+                  Text("$numberOfLoveDays days",
+                    style: const TextStyle(fontSize:22,fontWeight: FontWeight.bold,color: Colors.white,fontFamily:"CupertinoSystemDisplay" ),),
+                  const SizedBox(width:80,),
+                  ClipOval(
+                    clipBehavior: Clip.hardEdge,
+                    child: Material(
+                      color: Colors.white38,
+                      child: IconButton(
+                          onPressed: (){
+                            Navigator.push(context, MaterialPageRoute(builder: (context)=>const MapScreen()));
+                          },
+                          icon:const Icon(Icons.location_on,color: Colors.white,size: 30,)
+                      ),
+                    ),
+                  )
+                ],
+              ),
+              const SizedBox(height: 50,),
+              _cameraPreviewWidget(),
+              const SizedBox(height: 20,),
+              const SizedBox(height: 30,),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(width: 15,),
+                  InkWell(
+                    onTap: (){
+                      setState(() {
+                        turnOnFlash = !turnOnFlash;
+                      });
+                      if(controller != null && turnOnFlash){
+                        onSetFlashModeButtonPressed(FlashMode.always);
+                      }else if(controller != null && !turnOnFlash){
+                        onSetFlashModeButtonPressed(FlashMode.off);
+                      }
+                    },
+                    onDoubleTap: controller != null ? ()=>onSetFlashModeButtonPressed(FlashMode.auto):null,
+                    onLongPress: controller != null ? ()=>onSetFlashModeButtonPressed(FlashMode.torch):null,
+                    child: Image.asset(turnOnFlash?"images/turn-off.png":"images/flash.png",height: 50,width: 50,),
+                  ),
+                  const SizedBox(width: 35,),
+                  GestureDetector(
+                    onTap: () {
+                      isPauseRecording?
+                      (controller!.value.isRecordingPaused)?onResumeButtonPressed():onStopButtonPressed():
+                      onTakePictureButtonPressed();},
+                    onLongPressStart: (details) {onVideoRecordButtonPressed();},
+                    onLongPressEnd: (details) {onPauseButtonPressed();},
+                    child: Container(
+                      width: 85,
+                      height: 85,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white, // Inner white color
+                        border: Border.all(
+                          color: Colors.black, // Black border
+                          width: 5,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.lightBlue, // Outer yellow border
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 35,),
+                  IconButton(
+                    icon: Image.asset("images/camera.png",height:50,width: 50,),
+                    onPressed: (){
+                      if(cameras.isEmpty){
+                        showInSnackBar("No camera found");
+                      }else{
+                        setState(() {
+                          frontCamera = !frontCamera;
+                        });
+                        if(controller != null){
+                          if(frontCamera){
+                            controller!.setDescription(cameras[1]);
+                          }else {
+                            controller!.setDescription(cameras[0]);
+                          }
+                        }else{
+                          _initializeCameraController(cameras[0]);
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20,),
+              const Center(child: Icon(Icons.keyboard_arrow_up_rounded,color: Colors.white,size: 50,)),
+              const Text("Scroll to see more",style:TextStyle(fontSize:18,color: Colors.white,fontWeight: FontWeight.bold),),
+            ],
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 50,),
+              _thumbnailWidget(),
+              const SizedBox(height: 50,),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  void _onPageChanged(int page) {
+    setState(() {
+    });
+    if (page != 0) {
+      controller?.dispose();
+      setState(() {
+        controller = null;
+      });
+    } else {
+      if(cameras.isNotEmpty){
+        _initializeCameraController(cameras[0]);
+      }
+    }
   }
 
   void showInSnackBar(String message) {
@@ -264,7 +284,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   void onStopButtonPressed() {
     stopVideoRecording().then((XFile? file) {
       if (mounted) {
-        setState(() {});
+        setState(() {
+          isPauseRecording = false;
+        });
       }
       if (file != null) {
         showInSnackBar('Video recorded to ${file.path}');
@@ -272,25 +294,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         _startVideoPlayer();
       }
     });
-  }
-
-  Future<void> onPausePreviewButtonPressed() async {
-    final CameraController? cameraController = controller;
-
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      showInSnackBar('Error: select a camera first.');
-      return;
-    }
-
-    if (cameraController.value.isPreviewPaused) {
-      await cameraController.resumePreview();
-    } else {
-      await cameraController.pausePreview();
-    }
-
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   void onPauseButtonPressed() {
@@ -356,6 +359,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
     try {
       await cameraController.pauseVideoRecording();
+      setState(() {
+        isPauseRecording = true;
+      });
     } on CameraException catch (e) {
       _showCameraException(e);
       rethrow;
@@ -597,87 +603,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             width: 3.0,
           ),
         ),
-        child: (localVideoController == null)
-            ? (
-            // The captured image on the web contains a network-accessible URL
-            // pointing to a location within the browser. It may be displayed
-            // either with Image.network or Image.memory after loading the image
-            // bytes to memory.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(40),
-              child: kIsWeb
-                  ? Image.network(imageFile!.path)
-                  : Image.file(File(imageFile!.path),
-                height: MediaQuery.sizeOf(context).height*0.5,
-                width: MediaQuery.sizeOf(context).width-20,
-                fit: BoxFit.cover,
-              )
-            ))
-            : Container(
-          decoration: BoxDecoration(
-              border: Border.all(color: Colors.pink)),
-          child: Center(
-            child: AspectRatio(
-                aspectRatio:
-                localVideoController.value.aspectRatio,
-                child: VideoPlayer(localVideoController)),
-          ),
-        ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: (localVideoController == null)?kIsWeb
+                ? Image.network(imageFile!.path)
+                : Image.file(File(imageFile!.path),
+              height: MediaQuery.sizeOf(context).height*0.5,
+              width: MediaQuery.sizeOf(context).width-20,
+              fit: BoxFit.cover,
+            ): VideoPreview().videoPreview(localVideoController),
+          )
       );
     }
   }
-
-  /// Display the control bar with buttons to take pictures and record videos.
-  Widget _captureControlRowWidget() {
-    final CameraController? cameraController = controller;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: <Widget>[
-        IconButton(
-          icon: const Icon(Icons.videocam),
-          color: Colors.blue,
-          onPressed: cameraController != null &&
-              cameraController.value.isInitialized &&
-              !cameraController.value.isRecordingVideo
-              ? onVideoRecordButtonPressed
-              : null,
-        ),
-        IconButton(
-          icon: cameraController != null &&
-              cameraController.value.isRecordingPaused
-              ? const Icon(Icons.play_arrow)
-              : const Icon(Icons.pause),
-          color: Colors.blue,
-          onPressed: cameraController != null &&
-              cameraController.value.isInitialized &&
-              cameraController.value.isRecordingVideo
-              ? (cameraController.value.isRecordingPaused)
-              ? onResumeButtonPressed
-              : onPauseButtonPressed
-              : null,
-        ),
-        IconButton(
-          icon: const Icon(Icons.stop),
-          color: Colors.red,
-          onPressed: cameraController != null &&
-              cameraController.value.isInitialized &&
-              cameraController.value.isRecordingVideo
-              ? onStopButtonPressed
-              : null,
-        ),
-        IconButton(
-          icon: const Icon(Icons.pause_presentation),
-          color:
-          cameraController != null && cameraController.value.isPreviewPaused
-              ? Colors.red
-              : Colors.blue,
-          onPressed:
-          cameraController == null ? null : onPausePreviewButtonPressed,
-        ),
-      ],
-    );
-  }
-
-
 }
