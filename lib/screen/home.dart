@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:t178/screen/camera_options.dart';
 import 'package:t178/screen/map.dart';
+import 'package:t178/constants.dart';
+import 'package:t178/screen/send.dart';
 import 'package:t178/screen/pages/video_preview.dart';
 import 'package:video_player/video_player.dart';
 
@@ -122,8 +124,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               ),
               const SizedBox(height: 50,),
               _cameraPreviewWidget(),
-              const SizedBox(height: 20,),
-              const SizedBox(height: 30,),
+              const SizedBox(height: 50),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -146,12 +147,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   ),
                   const SizedBox(width: 35,),
                   GestureDetector(
-                    onTap: () {
-                      isPauseRecording?
-                      (controller!.value.isRecordingPaused)?onResumeButtonPressed():onStopButtonPressed():
-                      onTakePictureButtonPressed();},
+                    onTap: () {onTakePictureButtonPressed();},
                     onLongPressStart: (details) {onVideoRecordButtonPressed();},
-                    onLongPressEnd: (details) {onPauseButtonPressed();},
+                    onLongPressEnd: (details) {onStopButtonPressed();},
                     child: Container(
                       width: 85,
                       height: 85,
@@ -268,6 +266,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         });
         if (file != null) {
           showInSnackBar('Picture saved to ${file.path}');
+          Navigator.push(context, MaterialPageRoute(builder: (context)=>Send(mediaPath: imageFile!.path,controller: videoController,)));
         }
       }
     });
@@ -289,9 +288,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         });
       }
       if (file != null) {
-        showInSnackBar('Video recorded to ${file.path}');
         videoFile = file;
         _startVideoPlayer();
+        showInSnackBar('Recording video successfully');
       }
     });
   }
@@ -433,7 +432,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         videoController = vController;
       });
     }
-    await vController.play();
+    await vController.pause();
+    Navigator.push(context,MaterialPageRoute(builder: (context)=>Send(mediaPath: videoFile!.path,controller: vController,)));
   }
 
   Future<XFile?> takePicture() async {
@@ -519,8 +519,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   Widget _cameraPreviewWidget() {
     final CameraController? cameraController = controller;
     return Container(
-        width: MediaQuery.sizeOf(context).width-20,
-        height: MediaQuery.sizeOf(context).height*0.5,
+        width: width(context)-20,
+        height: height(context)*0.5,
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(40),
@@ -529,7 +529,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             controller != null && controller!.value.isRecordingVideo
                 ? Colors.redAccent
                 : Colors.grey,
-            width: 3.0,
+            width: 5,
           ),
         ),
         child:(cameraController == null || !cameraController.value.isInitialized)?
@@ -593,14 +593,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       return Container();
     } else {
       return Container(
-        width: MediaQuery.sizeOf(context).width-20,
-        height: MediaQuery.sizeOf(context).height*0.5,
+        width: width(context)-20,
+        height: height(context)*0.5,
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(40),
           border: Border.all(
             color: Colors.grey,
-            width: 3.0,
+            width: 5,
           ),
         ),
           child: ClipRRect(
