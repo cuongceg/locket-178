@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:t178/screen/pages/color_filters.dart';
 import 'package:flutter/material.dart';
@@ -17,9 +18,13 @@ class Send extends StatefulWidget {
 }
 
 class _SendState extends State<Send> {
+
   int currentFilterIndex=0;
   final List<List<double>> filters = [ORIGINAL_MATRIX,BRIGHTNESS_MATRIX,CONTRAST_MATRIX,SATURATION_MATRIX,GREYSCALE_MATRIX,SEPIA_MATRIX,VINTAGE_MATRIX,SWEET_MATRIX];
   final List<String> filterNames = ["Original","Brightness","Contrast","Saturation","Sepia","Greyscale","Vintage","Sweet"];
+  final textController = TextEditingController();
+  String? text;
+
   @override
   void initState() {
     super.initState();
@@ -40,37 +45,71 @@ class _SendState extends State<Send> {
       body: SizedBox(
         width: width(context),
         height: height(context),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: ListView(
           children: [
             const SizedBox(height: 30,),
-            (widget.controller == null && widget.mediaPath == null)?const SizedBox():Container(
-                width: width(context)-20,
-                height: height(context)*0.5,
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(40),
-                  border: Border.all(
-                    color: Colors.grey,
-                    width: 5.0,
+            (widget.controller == null && widget.mediaPath == null)?const SizedBox():Center(
+              child: Container(
+                  width: width(context)-20,
+                  height: height(context)*0.5,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(40),
+                    border: Border.all(
+                      color: Colors.grey,
+                      width: 5.0,
+                    ),
                   ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(40),
-                  child: (widget.controller == null)?(
-                  ColorFiltered(
-                    colorFilter: ColorFilter.matrix(filters[currentFilterIndex]),
-                    child: kIsWeb
-                        ? Image.network(widget.mediaPath!)
-                        : Image.file(File(widget.mediaPath!),
-                      height: MediaQuery.sizeOf(context).height*0.5,
-                      width: MediaQuery.sizeOf(context).width-20,
-                      filterQuality: FilterQuality.high,
-                      fit: BoxFit.cover,)
-                  )
-                  ): VideoPreview().videoPreview(widget.controller!),
-                )
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(40),
+                    child: (widget.controller == null)?(
+                        Stack(
+                          children: [
+                            ColorFiltered(
+                                colorFilter: ColorFilter.matrix(filters[currentFilterIndex]),
+                                child: kIsWeb
+                                    ? Image.network(widget.mediaPath!)
+                                    : Image.file(File(widget.mediaPath!),
+                                  height: MediaQuery.sizeOf(context).height*0.5,
+                                  width: MediaQuery.sizeOf(context).width-20,
+                                  filterQuality: FilterQuality.high,
+                                  fit: BoxFit.cover,)
+                            ),
+                            Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(horizontal:width(context)*1/5),
+                                child: TextField(
+                                  controller: textController,
+                                  onChanged: (value){
+                                    setState(() {
+                                      text = value;
+                                    });
+                                  },
+                                  showCursor: true,
+                                  cursorColor: Colors.white,
+                                  autofocus: false,
+                                  style: const TextStyle(color: Colors.white,fontSize: 15,fontWeight: FontWeight.bold),
+                                  decoration: const InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.black54,
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.all(Radius.circular(30)),
+                                      borderSide: BorderSide(color: Colors.black26,width: 0.5),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.all(Radius.circular(30)),
+                                      borderSide: BorderSide(color: Colors.black38,width: 0.5),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          ],
+                        )
+                    ): VideoPreview().videoPreview(widget.controller!),
+                  ),
+              ),
             ),
             const SizedBox(height: 50),
             Row(
@@ -111,7 +150,7 @@ class _SendState extends State<Send> {
                 ),
               ],
             ),
-            SizedBox(
+            widget.controller == null ?SizedBox(
               width: width(context),
               height: 150,
               child: ListView.builder(
@@ -128,13 +167,21 @@ class _SendState extends State<Send> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             ColorFiltered(
                               colorFilter: ColorFilter.matrix(filters[index]),
-                              child: CircleAvatar(
-                                radius: 40,
-                                backgroundImage: FileImage(File(widget.mediaPath!)),
+                              child: Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(width: 4,color: currentFilterIndex==index?CupertinoColors.systemBlue:Colors.grey)
+                                ),
+                                child: CircleAvatar(
+                                  radius: 40,
+                                  backgroundImage: FileImage(File(widget.mediaPath!)),
+                                )
                               )
                             ),
                             const SizedBox(height: 10,),
@@ -145,7 +192,7 @@ class _SendState extends State<Send> {
                     );
                   }
               ),
-            )
+            ):const SizedBox()
           ],
         ),
       ),
