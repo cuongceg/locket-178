@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:t178/screen/camera_options.dart';
-import 'package:t178/screen/map.dart';
 import 'package:t178/constants.dart';
 import 'package:t178/screen/send.dart';
 import 'package:t178/screen/pages/video_preview.dart';
 import 'package:video_player/video_player.dart';
+import 'animation/border_painter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +20,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, TickerProviderStateMixin{
   DateTime today = DateTime.now();
   DateTime begin = DateTime(2023,11,27);
+  // PageView controller
   late PageController _pageController;
+  // Animation controller
+  late AnimationController _animationController;
+  late Animation<double> _animation;
   // Counting pointers (number of user fingers on screen)
   int _pointers = 0;
   // camera variables
@@ -47,11 +51,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     // Register this widget as an observer to listen for lifecycle changes
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
+    _animationController = AnimationController(vsync: this,duration: const Duration(seconds: 2));
+    _animation = Tween<double>(begin: 0,end: 1).animate(_animationController)
+      ..addListener(() {
+        setState(() {
+        });
+      });
   }
 
   @override
   void dispose(){
     WidgetsBinding.instance.removeObserver(this);
+    _animationController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -114,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                       color: Colors.white38,
                       child: IconButton(
                           onPressed: (){
-                            Navigator.push(context, MaterialPageRoute(builder: (context)=>const MapScreen()));
+                            // Navigator.push(context, MaterialPageRoute(builder: (context)=>const MapScreen()));
                           },
                           icon:const Icon(Icons.location_on,color: Colors.white,size: 30,)
                       ),
@@ -148,7 +159,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   const SizedBox(width: 35,),
                   GestureDetector(
                     onTap: () {onTakePictureButtonPressed();},
-                    onLongPressStart: (details) {onVideoRecordButtonPressed();},
+                    onLongPressStart: (details) {
+                      onVideoRecordButtonPressed();
+                      _onStartAnimation();
+                    },
                     onLongPressEnd: (details) {onStopButtonPressed();},
                     child: Container(
                       width: 85,
@@ -224,6 +238,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       if(cameras.isNotEmpty){
         _initializeCameraController(cameras[0]);
       }
+    }
+  }
+
+  void _onStartAnimation(){
+    if (_animationController.status == AnimationStatus.completed) {
+      _animationController.reverse();
+    } else {
+      _animationController.forward();
     }
   }
 
@@ -518,54 +540,62 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
   Widget _cameraPreviewWidget() {
     final CameraController? cameraController = controller;
-    return Container(
-        width: width(context)-20,
-        height: height(context)*0.5,
-        decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(40),
-          border: Border.all(
-            color:
-            controller != null && controller!.value.isRecordingVideo
-                ? Colors.redAccent
-                : Colors.grey,
-            width: 5,
-          ),
-        ),
-        child:(cameraController == null || !cameraController.value.isInitialized)?
-        Center(
-          child: IconButton(
-            icon:const Icon(Icons.add,size:32,color: Colors.white,),
-            onPressed: (){
-              if(cameras.isNotEmpty){
-                _initializeCameraController(cameras[0]);
-              }
-            },
-          ),
-        )
-            :Listener(
-          onPointerDown: (_) => _pointers++,
-          onPointerUp: (_) => _pointers--,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(40),
-            child: AspectRatio(
-              aspectRatio: 4/3,
-              child: CameraPreview(
-                controller!,
-                child: LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints constraints) {
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onScaleStart: _handleScaleStart,
-                        onScaleUpdate: _handleScaleUpdate,
-                        onTapDown: (TapDownDetails details) =>
-                            onViewFinderTap(details, constraints),
-                      );
-                    }),
-              ),
+    return AnimatedBuilder(
+        animation: _animation,
+        builder: (context,child){
+          return CustomPaint(
+            foregroundPainter: BorderPainter(_animation.value),
+            child: Container(
+                width: width(context)-20,
+                height: height(context)*0.5,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(40),
+                  border: Border.all(
+                    color:
+                    controller != null && controller!.value.isRecordingVideo
+                        ? Colors.redAccent
+                        : Colors.grey,
+                    width: 5,
+                  ),
+                ),
+                child:(cameraController == null || !cameraController.value.isInitialized)?
+                Center(
+                  child: IconButton(
+                    icon:const Icon(Icons.add,size:32,color: Colors.white,),
+                    onPressed: (){
+                      if(cameras.isNotEmpty){
+                        _initializeCameraController(cameras[0]);
+                      }
+                    },
+                  ),
+                )
+                    :Listener(
+                  onPointerDown: (_) => _pointers++,
+                  onPointerUp: (_) => _pointers--,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(40),
+                    child: AspectRatio(
+                      aspectRatio: 4/3,
+                      child: CameraPreview(
+                        controller!,
+                        child: LayoutBuilder(
+                            builder: (BuildContext context, BoxConstraints constraints) {
+                              return GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onScaleStart: _handleScaleStart,
+                                onScaleUpdate: _handleScaleUpdate,
+                                onTapDown: (TapDownDetails details) =>
+                                    onViewFinderTap(details, constraints),
+                              );
+                            }),
+                      ),
+                    ),
+                  ),
+                )
             ),
-          ),
-        )
+          );
+        }
     );
   }
 
